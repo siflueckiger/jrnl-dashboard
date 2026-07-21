@@ -54,7 +54,7 @@ body {
 .heatmap-scroll { overflow-x:auto; padding-bottom:4px; }
 .heatmap { display:flex; gap:2px; }
 .heatmap .month-col { display:flex; flex-direction:column; gap:2px; }
-.heatmap .month-label { font-size:10px; color:var(--text-muted); height:14px; line-height:14px; cursor:pointer; border-radius:3px; padding:0 2px; transition:all 0.12s; }
+.heatmap .month-label { font-size:10px; color:var(--text-muted); height:14px; line-height:14px; cursor:pointer; border-radius:3px; padding:0 2px; transition:all 0.12s; white-space:nowrap; }
 .heatmap .month-label:hover { background:var(--border); }
 .heatmap .month-label.active { background:var(--accent); color:#fff; }
 .heatmap .week { display:flex; flex-direction:column; gap:2px; }
@@ -330,7 +330,13 @@ function renderCalendar() {
   }
   html += '</div></div></div>';
   html += `<div class="heatmap-legend">Less <span class="swatch s0"></span><span class="swatch s1"></span><span class="swatch s2"></span><span class="swatch s3"></span><span class="swatch s4"></span> More · max ${maxCount} entr${maxCount===1?'y':'ies'}/day</div>`;
+  const scrollEl = section.querySelector('.heatmap-scroll');
+  const savedScroll = scrollEl ? scrollEl.scrollLeft : 0;
   section.innerHTML = html;
+  if (savedScroll > 0) {
+    const newScrollEl = section.querySelector('.heatmap-scroll');
+    if (newScrollEl) newScrollEl.scrollLeft = savedScroll;
+  }
 
   section.querySelectorAll('.month-label[data-month]').forEach(label => {
     label.addEventListener('click', () => {
