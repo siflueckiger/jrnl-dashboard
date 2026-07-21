@@ -76,6 +76,19 @@ body {
 .day-anchor { scroll-margin-top:28px; }
 .no-results { text-align:center; padding:30px; color:var(--text-muted); font-size:14px; }
 
+.year-selector { display:flex; flex-direction:column; gap:1px; flex-shrink:0; margin-bottom:6px; }
+.year-btn { display:flex; align-items:center; justify-content:space-between; width:100%; padding:3px 8px; border:1px solid var(--border); border-radius:5px; background:var(--surface); cursor:pointer; font-size:12px; font-family:inherit; color:var(--text); transition:all 0.12s; }
+.year-btn:hover { border-color:var(--accent); }
+.year-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.year-btn .count { font-size:10px; opacity:0.7; }
+
+.month-grid { display:none; grid-template-columns:repeat(3,1fr); gap:2px; flex-shrink:0; margin-bottom:6px; }
+.month-grid.visible { display:grid; }
+.month-btn { padding:3px 4px; border:1px solid var(--border); border-radius:5px; background:var(--surface); cursor:pointer; font-size:11px; font-family:inherit; color:var(--text); text-align:center; transition:all 0.12s; }
+.month-btn:hover { border-color:var(--accent); background:var(--accent-light); }
+.month-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.month-btn .count { display:block; font-size:10px; opacity:0.7; }
+
 </style>
 </head>
 <body>
@@ -98,6 +111,9 @@ body {
 
   <div class="main-panel">
     <div class="sidebar">
+      <h2>Time</h2>
+      <div class="year-selector" id="yearSelector"></div>
+      <div class="month-grid" id="monthGrid"></div>
       <h2>Tags</h2>
       <input type="text" class="tag-search" id="tagSearch" placeholder="Filter tags...">
       <ul class="tag-list" id="tagList"></ul>
@@ -118,6 +134,8 @@ let tags = {};
 let activeTags = new Set();
 let searchQuery = '';
 let currentFileName = '';
+let selectedYear = null;
+let selectedMonth = null;
 
 function formatSwiss(date) { return date.slice(8) + '.' + date.slice(5,7) + '.'; }
 function formatSwissDateTime(date, time) { return formatSwiss(date) + ' ' + time; }
@@ -145,6 +163,8 @@ dropZone.addEventListener('click', () => {
 function loadFile(file) {
   activeTags.clear();
   searchQuery = '';
+  selectedYear = null;
+  selectedMonth = null;
   document.getElementById('searchBar').value = '';
   document.getElementById('tagSearch').value = '';
   const reader = new FileReader();
@@ -183,8 +203,106 @@ function parseData(text) {
 
 function renderAll() {
   renderStats();
+  renderYearSelector();
+  renderMonthGrid();
   renderTags();
   renderEntries();
+}
+
+function getFilteredEntries() {
+  let filtered = entries;
+
+  if (selectedYear !== null) {
+    filtered = filtered.filter(e => e.date.startsWith(String(selectedYear) + '-'));
+  }
+  if (selectedMonth !== null && selectedYear !== null) {
+    const m = String(selectedMonth + 1).padStart(2, '0');
+    filtered = filtered.filter(e => e.date.startsWith(selectedYear + '-' + m));
+  }
+
+  if (activeTags.size > 0) {
+    filtered = filtered.filter(e => {
+      for (const t of activeTags) if (!e.tags.includes(t)) return false;
+      return true;
+    });
+  }
+
+  const search = searchQuery.toLowerCase();
+  if (search) {
+    const words = search.split(/\s+/).filter(w => w.length > 0);
+    filtered = filtered.filter(e =>
+      words.every(word =>
+        e.body.toLowerCase().includes(word) ||
+        e.date.includes(word) ||
+        formatSwiss(e.date).includes(word) ||
+        e.tags.some(t => t.toLowerCase().includes(word))
+      )
+    );
+  }
+
+  return filtered;
+}
+
+function renderYearSelector() {
+  const years = [...new Set(entries.map(e => e.date.slice(0, 4)))].sort();
+  const filtered = getFilteredEntries();
+  const container = document.getElementById('yearSelector');
+
+  let html = '';
+  for (const y of years) {
+    const count = filtered.filter(e => e.date.startsWith(y + '-')).length;
+    html += `<button class="year-btn${selectedYear === parseInt(y) ? ' active' : ''}" data-year="${y}">${y}<span class="count">(${count})</span></button>`;
+  }
+  container.innerHTML = html;
+
+  container.querySelectorAll('.year-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const y = parseInt(btn.dataset.year);
+      if (selectedYear === y) {
+        selectedYear = null;
+        selectedMonth = null;
+      } else {
+        selectedYear = y;
+        selectedMonth = null;
+      }
+      renderAll();
+    });
+  });
+}
+
+function renderMonthGrid() {
+  const grid = document.getElementById('monthGrid');
+  if (selectedYear === null) {
+    grid.classList.remove('visible');
+    grid.innerHTML = '';
+    return;
+  }
+
+  grid.classList.add('visible');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const filtered = getFilteredEntries();
+  let html = '';
+
+  for (let i = 0; i < 12; i++) {
+    const m = String(i + 1).padStart(2, '0');
+    const count = filtered.filter(e => e.date.startsWith(selectedYear + '-' + m)).length;
+    const active = selectedMonth === i ? ' active' : '';
+    html += `<button class="month-btn${active}" data-month="${i}">${months[i]}<span class="count">${count}</span></button>`;
+  }
+
+  grid.innerHTML = html;
+
+  grid.querySelectorAll('.month-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const m = parseInt(btn.dataset.month);
+      if (selectedMonth === m && selectedYear !== null) {
+        selectedMonth = null;
+      } else {
+        selectedMonth = m;
+      }
+      renderAll();
+    });
+  });
 }
 
 function renderStats() {
@@ -198,20 +316,7 @@ function renderStats() {
 
 function renderTags() {
   const tagSearchV = (document.getElementById('tagSearch')?.value || '').toLowerCase();
-  const searchQ = searchQuery.toLowerCase();
-
-  let filteredForTags = entries;
-  if (searchQ) {
-    const words = searchQ.split(/\s+/).filter(w => w.length > 0);
-    filteredForTags = filteredForTags.filter(e =>
-      words.every(word =>
-        e.body.toLowerCase().includes(word) ||
-        e.date.includes(word) ||
-        formatSwiss(e.date).includes(word) ||
-        e.tags.some(t => t.toLowerCase().includes(word))
-      )
-    );
-  }
+  const filteredForTags = getFilteredEntries();
 
   const tagCounts = {};
   for (const e of filteredForTags) {
@@ -237,27 +342,7 @@ function renderTags() {
 }
 
 function renderEntries() {
-  const search = searchQuery.toLowerCase();
-  let filtered = entries;
-
-  if (activeTags.size > 0) {
-    filtered = filtered.filter(e => {
-      for (const t of activeTags) if (!e.tags.includes(t)) return false;
-      return true;
-    });
-  }
-
-  if (search) {
-    const words = search.split(/\s+/).filter(w => w.length > 0);
-    filtered = filtered.filter(e =>
-      words.every(word =>
-        e.body.toLowerCase().includes(word) ||
-        e.date.includes(word) ||
-        formatSwiss(e.date).includes(word) ||
-        e.tags.some(t => t.toLowerCase().includes(word))
-      )
-    );
-  }
+  const filtered = getFilteredEntries();
 
   const activeFiltersDiv = document.getElementById('activeFilters');
   if (activeTags.size > 0) {
