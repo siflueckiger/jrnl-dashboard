@@ -58,6 +58,7 @@ body {
 .heatmap .month-label:hover { background:var(--border); }
 .heatmap .month-label.active { background:var(--accent); color:#fff; }
 .heatmap .week { display:flex; flex-direction:column; gap:2px; }
+.heatmap .year-gap { width:8px; flex-shrink:0; }
 .heatmap .day { width:12px; height:12px; border-radius:2px; background:var(--heat-0); cursor:pointer; transition:all 0.1s; }
 .heatmap .day[data-count="1"] { background:var(--heat-1); }
 .heatmap .day[data-count="2"] { background:var(--heat-2); }
@@ -262,9 +263,14 @@ function renderCalendar() {
   });
   filteredForCalendar.forEach(e => { counts[e.date] = (counts[e.date] || 0) + 1; });
   const maxCount = Math.max(...Object.values(counts).concat([1]));
-  const year = entries.length > 0 ? entries[0].date.slice(0,4) : '2025';
-  const d0 = new Date(`${year}-01-01`);
-  const d1 = new Date(`${year}-12-31`);
+
+  const allDates = entries.map(e => e.date).sort();
+  const minDate = allDates[0];
+  const maxDate = allDates[allDates.length - 1];
+  const d0 = new Date(minDate + 'T00:00:00');
+  d0.setDate(d0.getDate() - ((d0.getDay() + 6) % 7 || (d0.getDay() === 0 ? 6 : d0.getDay() - 1)));
+  const d1 = new Date(maxDate + 'T00:00:00');
+  d1.setDate(d1.getDate() + (d1.getDay() === 0 ? 0 : 7 - d1.getDay()));
 
   const allDays = [];
   for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
@@ -288,28 +294,34 @@ function renderCalendar() {
   html += '<div class="day-labels"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>';
   html += '<div class="heatmap-scroll"><div class="heatmap">';
 
-  let lastMonth = -1;
+  let lastMonthKey = '';
+  let prevYear = '';
   for (let wi = 0; wi < weeks.length; wi++) {
     const w = weeks[wi];
     let monthLabel = '';
+    let mKey = '';
     for (const day of w) {
-      if (day && day.count > 0) {
-        const m = parseInt(day.date.slice(5,7)) - 1;
-        if (m !== lastMonth) { monthLabel = months[m]; lastMonth = m; }
-        break;
-      }
       if (day) {
-        const m = parseInt(day.date.slice(5,7)) - 1;
-        if (m !== lastMonth) { monthLabel = months[m]; lastMonth = m; }
+        const [y,m] = day.date.split('-');
+        mKey = y + '-' + m;
+        const yy = y.slice(2);
+        if (mKey !== lastMonthKey) {
+          monthLabel = months[parseInt(m)-1] + ' ' + yy;
+          lastMonthKey = mKey;
+        }
+        if (prevYear && y !== prevYear && y > prevYear) {
+          html += '<div class="year-gap"></div>';
+        }
+        prevYear = y;
         break;
       }
     }
     html += '<div class="month-col">';
-    const mKey = monthLabel ? year + '-' + String(months.indexOf(monthLabel)+1).padStart(2,'0') : '';
     html += `<div class="month-label${activeMonth===mKey?' active':''}" data-month="${mKey}">${monthLabel || '&nbsp;'}</div>`;
     html += '<div class="week">';
+    const visOrder = [1, 2, 3, 4, 5, 6, 0];
     for (let d = 0; d < 7; d++) {
-      const day = w[d];
+      const day = w[visOrder[d]];
       if (!day) { html += '<div class="day" style="visibility:hidden"></div>'; continue; }
       const level = day.count === 0 ? 0 : Math.max(1, Math.ceil(day.count / maxCount * 4));
       html += `<div class="day" data-count="${level}" data-date="${day.date}" data-countval="${day.count}"></div>`;
