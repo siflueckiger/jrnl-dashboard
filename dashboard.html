@@ -171,6 +171,7 @@ let activeMonth = null;
 
 function formatSwiss(date) { return date.slice(8) + '.' + date.slice(5,7) + '.'; }
 function formatSwissDateTime(date, time) { return formatSwiss(date) + ' ' + time; }
+function dateToStr(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 
 const dropZone = document.getElementById('dropZone');
 const app = document.getElementById('app');
@@ -267,9 +268,11 @@ function renderCalendar() {
   const allDates = entries.map(e => e.date).sort();
   const minDate = allDates[0];
   const maxDate = allDates[allDates.length - 1];
-  const d0 = new Date(minDate + 'T00:00:00');
-  d0.setDate(d0.getDate() - ((d0.getDay() + 6) % 7 || (d0.getDay() === 0 ? 6 : d0.getDay() - 1)));
-  const d1 = new Date(maxDate + 'T00:00:00');
+  const [y0,m0,d0d] = minDate.split('-').map(Number);
+  const [y1,m1,d1d] = maxDate.split('-').map(Number);
+  const d0 = new Date(y0, m0-1, d0d);
+  d0.setDate(d0.getDate() - (d0.getDay() === 0 ? 6 : d0.getDay() - 1));
+  const d1 = new Date(y1, m1-1, d1d);
   d1.setDate(d1.getDate() + (d1.getDay() === 0 ? 0 : 7 - d1.getDay()));
 
   const allDays = [];
@@ -280,7 +283,7 @@ function renderCalendar() {
   const weeks = [];
   let week = new Array(7).fill(null);
   for (const d of allDays) {
-    const ds = d.toISOString().slice(0,10);
+    const ds = dateToStr(d);
     week[d.getDay()] = { date: ds, count: counts[ds] || 0 };
     if (d.getDay() === 6 || d.getTime() === d1.getTime()) {
       weeks.push(week);
@@ -300,12 +303,15 @@ function renderCalendar() {
     const w = weeks[wi];
     let monthLabel = '';
     let mKey = '';
-    for (const day of w) {
+    let weekHasEntry = false;
+    for (const idx of [1, 2, 3, 4, 5, 6, 0]) {
+      const day = w[idx];
       if (day) {
+        if (day.count > 0) weekHasEntry = true;
         const [y,m] = day.date.split('-');
         mKey = y + '-' + m;
         const yy = y.slice(2);
-        if (mKey !== lastMonthKey) {
+        if (mKey !== lastMonthKey && weekHasEntry) {
           monthLabel = months[parseInt(m)-1] + ' ' + yy;
           lastMonthKey = mKey;
         }
@@ -316,6 +322,7 @@ function renderCalendar() {
         break;
       }
     }
+    if (!weekHasEntry) monthLabel = '';
     html += '<div class="month-col">';
     html += `<div class="month-label${activeMonth===mKey?' active':''}" data-month="${mKey}">${monthLabel || '&nbsp;'}</div>`;
     html += '<div class="week">';
