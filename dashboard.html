@@ -13,11 +13,6 @@
   --text-muted: #718096;
   --accent: #3182ce;
   --accent-light: #ebf8ff;
-  --heat-0: #edf2f7;
-  --heat-1: #bee3f8;
-  --heat-2: #63b3ed;
-  --heat-3: #3182ce;
-  --heat-4: #2b6cb0;
   --tag-bg: #edf2f7;
   --tag-text: #4a5568;
   --tag-active-bg: #3182ce;
@@ -45,35 +40,6 @@ body {
 
 #app { display:none; flex:1; min-height:0; }
 #app.visible { display:flex; flex-direction:column; }
-
-.calendar-section { flex-shrink:0; padding:0 24px 12px; }
-.calendar-section h2 { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:6px; }
-.heatmap-wrapper { display:flex; gap:0; }
-.day-labels { display:flex; flex-direction:column; gap:2px; margin-right:6px; padding-top:16px; flex-shrink:0; }
-.day-labels span { font-size:9px; color:var(--text-muted); width:18px; height:12px; line-height:12px; text-align:right; padding-right:3px; }
-.heatmap-scroll { overflow-x:auto; padding-bottom:4px; }
-.heatmap { display:flex; gap:2px; }
-.heatmap .month-col { display:flex; flex-direction:column; gap:2px; position:relative; padding-top:16px; min-width:12px; }
-.heatmap .month-label { font-size:10px; color:var(--text-muted); height:14px; line-height:14px; cursor:pointer; border-radius:3px; padding:0 2px; transition:all 0.12s; white-space:nowrap; position:absolute; top:0; left:0; }
-.heatmap .month-label:hover { background:var(--border); }
-.heatmap .month-label.active { background:var(--accent); color:#fff; }
-.heatmap .week { display:flex; flex-direction:column; gap:2px; }
-.heatmap .year-gap { width:6px; flex-shrink:0; }
-.heatmap .month-gap { width:5px; flex-shrink:0; }
-.heatmap .day { width:12px; height:12px; border-radius:2px; background:var(--heat-0); cursor:pointer; transition:all 0.1s; }
-.heatmap .day[data-count="1"] { background:var(--heat-1); }
-.heatmap .day[data-count="2"] { background:var(--heat-2); }
-.heatmap .day[data-count="3"] { background:var(--heat-3); }
-.heatmap .day[data-count="4"] { background:var(--heat-4); }
-.heatmap .day:hover { outline:2px solid var(--accent); outline-offset:0; z-index:1; }
-.heatmap .day.selected { outline:2px solid var(--accent); outline-offset:0; z-index:1; box-shadow:0 0 0 2px var(--accent-light); }
-.heatmap-legend { display:flex; align-items:center; gap:3px; margin-top:4px; margin-left:24px; font-size:10px; color:var(--text-muted); }
-.heatmap-legend .swatch { width:12px; height:12px; border-radius:2px; }
-.heatmap-legend .swatch.s0 { background:var(--heat-0); }
-.heatmap-legend .swatch.s1 { background:var(--heat-1); }
-.heatmap-legend .swatch.s2 { background:var(--heat-2); }
-.heatmap-legend .swatch.s3 { background:var(--heat-3); }
-.heatmap-legend .swatch.s4 { background:var(--heat-4); }
 
 .stats-row { flex-shrink:0; display:flex; gap:12px; padding:0 24px 12px; flex-wrap:wrap; }
 .stat { padding:8px 14px; background:var(--surface); border-radius:8px; border:1px solid var(--border); min-width:90px; }
@@ -115,13 +81,6 @@ body {
 .entry.hidden { display:none; }
 .day-anchor { scroll-margin-top:28px; }
 .no-results { text-align:center; padding:30px; color:var(--text-muted); font-size:14px; }
-
-.heat-tooltip {
-  position:fixed; pointer-events:none; z-index:100;
-  background:#1a202c; color:#fff; font-size:11px; padding:3px 7px;
-  border-radius:4px; white-space:nowrap; display:none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-}
 </style>
 </head>
 <body>
@@ -141,8 +100,6 @@ body {
 </div>
 
 <div id="app">
-  <div class="calendar-section" id="calendarSection"></div>
-
   <div class="stats-row" id="statsRow"></div>
 
   <div class="main-panel">
@@ -161,18 +118,14 @@ body {
   </div>
 </div>
 
-<div class="heat-tooltip" id="heatTooltip"></div>
-
 <script>
 let entries = [];
 let tags = {};
 let activeTags = new Set();
 let searchQuery = '';
-let activeMonth = null;
 
 function formatSwiss(date) { return date.slice(8) + '.' + date.slice(5,7) + '.'; }
 function formatSwissDateTime(date, time) { return formatSwiss(date) + ' ' + time; }
-function dateToStr(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 
 const dropZone = document.getElementById('dropZone');
 const app = document.getElementById('app');
@@ -195,7 +148,6 @@ dropZone.addEventListener('click', () => {
 });
 
 function loadFile(file) {
-  activeMonth = null;
   activeTags.clear();
   searchQuery = '';
   document.getElementById('searchBar').value = '';
@@ -237,162 +189,9 @@ function parseData(text) {
 }
 
 function renderAll() {
-  renderCalendar();
   renderStats();
   renderTags();
   renderEntries();
-}
-
-function renderCalendar() {
-  const section = document.getElementById('calendarSection');
-  const counts = {};
-  const searchQ = searchQuery.toLowerCase();
-  const filteredForCalendar = entries.filter(e => {
-    if (activeMonth && !e.date.startsWith(activeMonth)) return false;
-    if (activeTags.size > 0) {
-      for (const t of activeTags) if (!e.tags.includes(t)) return false;
-    }
-    if (searchQ) {
-      const words = searchQ.split(/\s+/).filter(w => w.length > 0);
-      return words.every(word =>
-        e.body.toLowerCase().includes(word) ||
-        e.date.includes(word) ||
-        formatSwiss(e.date).includes(word) ||
-        e.tags.some(t => t.toLowerCase().includes(word))
-      );
-    }
-    return true;
-  });
-  filteredForCalendar.forEach(e => { counts[e.date] = (counts[e.date] || 0) + 1; });
-  const maxCount = Math.max(...Object.values(counts).concat([1]));
-
-  const allDates = entries.map(e => e.date).sort();
-  const minDate = allDates[0];
-  const maxDate = allDates[allDates.length - 1];
-  const [y0,m0,d0d] = minDate.split('-').map(Number);
-  const [y1,m1,d1d] = maxDate.split('-').map(Number);
-  const d0 = new Date(y0, m0-1, d0d);
-  d0.setDate(d0.getDate() - (d0.getDay() === 0 ? 6 : d0.getDay() - 1));
-  const d1 = new Date(y1, m1-1, d1d);
-  d1.setDate(d1.getDate() + (d1.getDay() === 0 ? 0 : 7 - d1.getDay()));
-
-  const allDays = [];
-  for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
-    allDays.push(new Date(d));
-  }
-
-  const weeks = [];
-  let week = new Array(7).fill(null);
-  for (const d of allDays) {
-    const ds = dateToStr(d);
-    week[d.getDay()] = { date: ds, count: counts[ds] || 0 };
-    if (d.getDay() === 6 || d.getTime() === d1.getTime()) {
-      weeks.push(week);
-      week = new Array(7).fill(null);
-    }
-  }
-
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-  let html = '<h2>Activity</h2><div class="heatmap-wrapper">';
-  html += '<div class="day-labels"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>';
-  html += '<div class="heatmap-scroll"><div class="heatmap">';
-
-  let lastMonthKey = '';
-  for (let wi = 0; wi < weeks.length; wi++) {
-    const w = weeks[wi];
-    let monthLabel = '';
-    let mKey = '';
-    let weekHasEntry = false;
-    let weekYear = '';
-    for (const idx of [1, 2, 3, 4, 5, 6, 0]) {
-      const day = w[idx];
-      if (day) {
-        if (day.count > 0) weekHasEntry = true;
-        const [y,m] = day.date.split('-');
-        mKey = y + '-' + m;
-        weekYear = y;
-        const yy = y.slice(2);
-        if (mKey !== lastMonthKey && weekHasEntry) {
-          if (lastMonthKey) {
-            html += '<div class="' + (weekYear !== lastMonthKey.slice(0,4) ? 'year-gap' : 'month-gap') + '"></div>';
-          }
-          monthLabel = months[parseInt(m)-1] + ' ' + yy;
-          lastMonthKey = mKey;
-        }
-        break;
-      }
-    }
-    if (!weekHasEntry) monthLabel = '';
-    html += '<div class="month-col">';
-    html += `<div class="month-label${activeMonth===mKey?' active':''}" data-month="${mKey}">${monthLabel || '&nbsp;'}</div>`;
-    html += '<div class="week">';
-    const visOrder = [1, 2, 3, 4, 5, 6, 0];
-    for (let d = 0; d < 7; d++) {
-      const day = w[visOrder[d]];
-      if (!day) { html += '<div class="day" style="visibility:hidden"></div>'; continue; }
-      const level = day.count === 0 ? 0 : Math.max(1, Math.ceil(day.count / maxCount * 4));
-      html += `<div class="day" data-count="${level}" data-date="${day.date}" data-countval="${day.count}"></div>`;
-    }
-    html += '</div></div>';
-  }
-  html += '</div></div></div>';
-  html += `<div class="heatmap-legend">Less <span class="swatch s0"></span><span class="swatch s1"></span><span class="swatch s2"></span><span class="swatch s3"></span><span class="swatch s4"></span> More · max ${maxCount} entr${maxCount===1?'y':'ies'}/day</div>`;
-  const scrollEl = section.querySelector('.heatmap-scroll');
-  const savedScroll = scrollEl ? scrollEl.scrollLeft : 0;
-  section.innerHTML = html;
-  if (savedScroll > 0) {
-    const newScrollEl = section.querySelector('.heatmap-scroll');
-    if (newScrollEl) newScrollEl.scrollLeft = savedScroll;
-  }
-
-  section.querySelectorAll('.month-label[data-month]').forEach(label => {
-    label.addEventListener('click', () => {
-      const m = label.dataset.month;
-      activeMonth = activeMonth === m ? null : m;
-      renderAll();
-    });
-  });
-
-  section.querySelectorAll('.day').forEach(dayEl => {
-    dayEl.addEventListener('click', () => {
-      const date = dayEl.dataset.date;
-      section.querySelectorAll('.day.selected').forEach(d => d.classList.remove('selected'));
-      dayEl.classList.add('selected');
-
-      const anchor = document.getElementById('d-' + date);
-      if (anchor) {
-        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        const entries = document.querySelectorAll('.entry');
-        entries.forEach(e => e.classList.remove('highlight'));
-        let el = anchor;
-        while (el && el.classList.contains('entry')) {
-          el.classList.add('highlight');
-          el = el.nextElementSibling;
-          if (el && el.classList.contains('day-anchor')) break;
-        }
-      }
-    });
-
-    const tooltip = document.getElementById('heatTooltip');
-    dayEl.addEventListener('mouseenter', e => {
-      const date = dayEl.dataset.date;
-      const count = parseInt(dayEl.dataset.countval) || 0;
-      let text = formatSwiss(date);
-      if (count > 0) text += ' — ' + count + ' ' + (count === 1 ? 'entry' : 'entries');
-      tooltip.textContent = text;
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX + 10) + 'px';
-      tooltip.style.top = (e.clientY - 28) + 'px';
-    });
-    dayEl.addEventListener('mousemove', e => {
-      tooltip.style.left = (e.clientX + 10) + 'px';
-      tooltip.style.top = (e.clientY - 28) + 'px';
-    });
-    dayEl.addEventListener('mouseleave', () => {
-      tooltip.style.display = 'none';
-    });
-  });
 }
 
 function renderStats() {
@@ -410,7 +209,6 @@ function renderTags() {
   const searchQ = searchQuery.toLowerCase();
 
   let filteredForTags = entries;
-  if (activeMonth) filteredForTags = filteredForTags.filter(e => e.date.startsWith(activeMonth));
   if (searchQ) {
     const words = searchQ.split(/\s+/).filter(w => w.length > 0);
     filteredForTags = filteredForTags.filter(e =>
@@ -449,10 +247,6 @@ function renderTags() {
 function renderEntries() {
   const search = searchQuery.toLowerCase();
   let filtered = entries;
-
-  if (activeMonth) {
-    filtered = filtered.filter(e => e.date.startsWith(activeMonth));
-  }
 
   if (activeTags.size > 0) {
     filtered = filtered.filter(e => {
