@@ -58,7 +58,8 @@ body {
 .heatmap .month-label:hover { background:var(--border); }
 .heatmap .month-label.active { background:var(--accent); color:#fff; }
 .heatmap .week { display:flex; flex-direction:column; gap:2px; }
-.heatmap .year-gap { width:4px; flex-shrink:0; }
+.heatmap .year-gap { width:6px; flex-shrink:0; }
+.heatmap .month-gap { width:5px; flex-shrink:0; }
 .heatmap .day { width:12px; height:12px; border-radius:2px; background:var(--heat-0); cursor:pointer; transition:all 0.1s; }
 .heatmap .day[data-count="1"] { background:var(--heat-1); }
 .heatmap .day[data-count="2"] { background:var(--heat-2); }
@@ -298,27 +299,27 @@ function renderCalendar() {
   html += '<div class="heatmap-scroll"><div class="heatmap">';
 
   let lastMonthKey = '';
-  let prevYear = '';
   for (let wi = 0; wi < weeks.length; wi++) {
     const w = weeks[wi];
     let monthLabel = '';
     let mKey = '';
     let weekHasEntry = false;
+    let weekYear = '';
     for (const idx of [1, 2, 3, 4, 5, 6, 0]) {
       const day = w[idx];
       if (day) {
         if (day.count > 0) weekHasEntry = true;
         const [y,m] = day.date.split('-');
         mKey = y + '-' + m;
+        weekYear = y;
         const yy = y.slice(2);
         if (mKey !== lastMonthKey && weekHasEntry) {
+          if (lastMonthKey) {
+            html += '<div class="' + (weekYear !== lastMonthKey.slice(0,4) ? 'year-gap' : 'month-gap') + '"></div>';
+          }
           monthLabel = months[parseInt(m)-1] + ' ' + yy;
           lastMonthKey = mKey;
         }
-        if (prevYear && y !== prevYear && y > prevYear) {
-          html += '<div class="year-gap"></div>';
-        }
-        prevYear = y;
         break;
       }
     }
