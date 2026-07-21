@@ -159,8 +159,8 @@ function loadFile(file) {
   document.getElementById('tagSearch').value = '';
   const reader = new FileReader();
   reader.onload = () => {
-    parseData(reader.result);
     currentFileName = file.name;
+    parseData(reader.result);
     dropZone.classList.add('has-data');
     app.classList.add('visible');
   };
@@ -201,7 +201,9 @@ function renderStats() {
   const total = entries.length;
   const uniqueTags = Object.keys(tags).length;
   const days = new Set(entries.map(e => e.date)).size;
-  fileInfo.textContent = currentFileName + '  \u00b7  ' + total + ' entries  \u00b7  ' + days + ' days  \u00b7  ' + uniqueTags + ' tags';
+  const fmt = d => d.slice(8) + '.' + d.slice(5,7) + '.' + d.slice(0,4);
+  const range = fmt(entries[entries.length - 1].date) + '\u2013' + fmt(entries[0].date);
+  fileInfo.textContent = currentFileName + '  \u00b7  ' + range + '  \u00b7  ' + days + ' days  \u00b7  ' + total + ' entries  \u00b7  ' + uniqueTags + ' tags';
 }
 
 function renderTags() {
