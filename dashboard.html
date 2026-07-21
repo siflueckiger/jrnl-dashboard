@@ -75,8 +75,7 @@ body {
 @keyframes flash { from { background:var(--accent); } to { background:var(--accent-light); } }
 .entry .time { font-size:11px; color:var(--text-muted); white-space:nowrap; flex-shrink:0; font-variant-numeric:tabular-nums; min-width:58px; }
 .entry .body { flex:1; }
-.entry .tags { display:flex; gap:3px; flex-wrap:wrap; margin-top:1px; }
-.entry .tag { font-size:10px; color:var(--accent); cursor:pointer; }
+.entry .tag { color:var(--accent); cursor:pointer; }
 .entry .tag:hover { text-decoration:underline; }
 .entry.hidden { display:none; }
 .day-anchor { scroll-margin-top:28px; }
@@ -174,9 +173,7 @@ function parseData(text) {
     const [, date, time, body] = match;
     const tagMatches = body.match(/@(\S+)/g) || [];
     const entryTags = tagMatches.map(t => t.slice(1));
-    const cleanBody = body.replace(/\s*@\S+/g, '').trim();
-
-    const entry = { date, time, body: cleanBody, tags: entryTags, raw: body };
+    const entry = { date, time, body, tags: entryTags };
     entries.push(entry);
 
     for (const tag of entryTags) {
@@ -306,10 +303,10 @@ function renderEntries() {
       html += `<div class="day-anchor" id="d-${e.date}"></div>`;
       lastDate = e.date;
     }
-    const tagSpan = e.tags.map(t => `<span class="tag" data-tag="${t}">@${t}</span>`).join(' ');
+    const escapedBody = e.body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/@(\S+)/g, '<span class="tag" data-tag="$1">@$1</span>');
     html += `<div class="entry" data-date="${e.date}">
       <span class="time">${formatSwissDateTime(e.date, e.time)}</span>
-      <div class="body">${e.body}${e.tags.length ? '<div class="tags">' + tagSpan + '</div>' : ''}</div>
+      <div class="body">${escapedBody}</div>
     </div>`;
   }
   html += '</div>';
