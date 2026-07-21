@@ -140,6 +140,15 @@ let selectedMonth = null;
 function formatSwiss(date) { return date.slice(8) + '.' + date.slice(5,7) + '.'; }
 function formatSwissDateTime(date, time) { return formatSwiss(date) + ' ' + time; }
 
+function splitTitle(body) {
+  const m = body.match(/^(.+?[.?!:])\s+(.+)/s);
+  return m ? { title: m[1], rest: m[2] } : null;
+}
+
+function escapeBody(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/@(\S+)/g, '<span class="tag" data-tag="$1">@$1</span>');
+}
+
 const dropZone = document.getElementById('dropZone');
 const app = document.getElementById('app');
 const fileInfo = document.getElementById('fileInfo');
@@ -383,10 +392,11 @@ function renderEntries() {
       html += `<div class="day-anchor" id="d-${e.date}"></div>`;
       lastDate = e.date;
     }
-    const escapedBody = e.body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/@(\S+)/g, '<span class="tag" data-tag="$1">@$1</span>');
+    const parts = splitTitle(e.body);
+    const bodyHtml = parts ? `<strong>${escapeBody(parts.title)}</strong> ${escapeBody(parts.rest)}` : escapeBody(e.body);
     html += `<div class="entry" data-date="${e.date}">
       <span class="time">${formatSwissDateTime(e.date, e.time)}</span>
-      <div class="body">${escapedBody}</div>
+      <div class="body">${bodyHtml}</div>
     </div>`;
   }
   html += '</div>';
