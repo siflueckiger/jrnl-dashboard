@@ -252,7 +252,7 @@ function renderCalendar() {
     return true;
   });
   filteredForCalendar.forEach(e => { counts[e.date] = (counts[e.date] || 0) + 1; });
-
+  const maxCount = Math.max(...Object.values(counts).concat([1]));
   const year = entries.length > 0 ? entries[0].date.slice(0,4) : '2025';
   const d0 = new Date(`${year}-01-01`);
   const d1 = new Date(`${year}-12-31`);
@@ -301,13 +301,13 @@ function renderCalendar() {
     for (let d = 0; d < 7; d++) {
       const day = w[d];
       if (!day) { html += '<div class="day" style="visibility:hidden"></div>'; continue; }
-      const count = Math.min(day.count, 4);
-      html += `<div class="day" data-count="${count}" data-date="${day.date}" data-countval="${day.count}"></div>`;
+      const level = day.count === 0 ? 0 : Math.max(1, Math.ceil(day.count / maxCount * 4));
+      html += `<div class="day" data-count="${level}" data-date="${day.date}" data-countval="${day.count}"></div>`;
     }
     html += '</div></div>';
   }
   html += '</div></div></div>';
-  html += '<div class="heatmap-legend">Less <span class="swatch s0"></span><span class="swatch s1"></span><span class="swatch s2"></span><span class="swatch s3"></span><span class="swatch s4"></span> More</div>';
+  html += `<div class="heatmap-legend">Less <span class="swatch s0"></span><span class="swatch s1"></span><span class="swatch s2"></span><span class="swatch s3"></span><span class="swatch s4"></span> More · max ${maxCount} entr${maxCount===1?'y':'ies'}/day</div>`;
   section.innerHTML = html;
 
   section.querySelectorAll('.day').forEach(dayEl => {
