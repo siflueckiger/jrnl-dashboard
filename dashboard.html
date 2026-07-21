@@ -41,11 +41,6 @@ body {
 #app { display:none; flex:1; min-height:0; }
 #app.visible { display:flex; flex-direction:column; }
 
-.stats-row { flex-shrink:0; display:flex; gap:12px; padding:0 24px 12px; flex-wrap:wrap; }
-.stat { padding:8px 14px; background:var(--surface); border-radius:8px; border:1px solid var(--border); min-width:90px; }
-.stat .num { font-size:20px; font-weight:700; }
-.stat .label { font-size:10px; color:var(--text-muted); text-transform:uppercase; }
-
 .main-panel { flex:1; display:flex; gap:20px; padding:0 24px; min-height:0; }
 .sidebar { width:190px; flex-shrink:0; display:flex; flex-direction:column; min-height:0; }
 .sidebar h2 { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:6px; flex-shrink:0; }
@@ -109,7 +104,6 @@ body {
 </div>
 
 <div id="app">
-  <div class="stats-row" id="statsRow"></div>
 
   <div class="main-panel">
     <div class="sidebar">
@@ -133,6 +127,7 @@ let entries = [];
 let tags = {};
 let activeTags = new Set();
 let searchQuery = '';
+let currentFileName = '';
 
 function formatSwiss(date) { return date.slice(8) + '.' + date.slice(5,7) + '.'; }
 function formatSwissDateTime(date, time) { return formatSwiss(date) + ' ' + time; }
@@ -165,9 +160,9 @@ function loadFile(file) {
   const reader = new FileReader();
   reader.onload = () => {
     parseData(reader.result);
+    currentFileName = file.name;
     dropZone.classList.add('has-data');
     app.classList.add('visible');
-    fileInfo.textContent = file.name + '  \u00b7  ' + entries.length + ' entries';
   };
   reader.readAsText(file);
 }
@@ -206,10 +201,7 @@ function renderStats() {
   const total = entries.length;
   const uniqueTags = Object.keys(tags).length;
   const days = new Set(entries.map(e => e.date)).size;
-  document.getElementById('statsRow').innerHTML =
-    `<div class="stat"><div class="num">${total}</div><div class="label">Entries</div></div>` +
-    `<div class="stat"><div class="num">${days}</div><div class="label">Days</div></div>` +
-    `<div class="stat"><div class="num">${uniqueTags}</div><div class="label">Tags</div></div>`;
+  fileInfo.textContent = currentFileName + '  \u00b7  ' + total + ' entries  \u00b7  ' + days + ' days  \u00b7  ' + uniqueTags + ' tags';
 }
 
 function renderTags() {
