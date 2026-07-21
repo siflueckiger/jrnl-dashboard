@@ -1,0 +1,6 @@
+# Journal data files
+*.txt
+jrnl-*
+
+# macOS
+.DS_Store

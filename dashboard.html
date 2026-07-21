@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>jrnl dashboard</title>
+<style>
+:root {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text: #1a202c;
+  --text-muted: #718096;
+  --accent: #3182ce;
+  --accent-light: #ebf8ff;
+  --heat-0: #edf2f7;
+  --heat-1: #bee3f8;
+  --heat-2: #63b3ed;
+  --heat-3: #3182ce;
+  --heat-4: #2b6cb0;
+  --tag-bg: #edf2f7;
+  --tag-text: #4a5568;
+  --tag-active-bg: #3182ce;
+  --tag-active-text: #ffffff;
+  --drop-bg: #f0fff4;
+  --drop-border: #68d391;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+.container { max-width:1100px; margin:0 auto; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+.header { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:16px 20px; flex-wrap:wrap; gap:8px; }
+.header h1 { font-size:22px; font-weight:700; letter-spacing:-0.3px; }
+.file-info { font-size:13px; color:var(--text-muted); }
+
+.drop-zone { flex:1; display:flex; align-items:center; justify-content:center; margin:24px 20px; border:2px dashed var(--border); border-radius:12px; cursor:pointer; transition:all 0.2s; background:var(--surface); }
+.drop-zone.active { border-color:var(--drop-border); background:var(--drop-bg); }
+.drop-zone.has-data { display:none; }
+.drop-zone-inner { text-align:center; color:var(--text-muted); font-size:15px; }
+.drop-zone-inner .icon { font-size:36px; margin-bottom:8px; display:block; }
+
+#app { display:none; flex:1; min-height:0; }
+#app.visible { display:flex; flex-direction:column; }
+
+.calendar-section { flex-shrink:0; padding:0 24px 12px; }
+.calendar-section h2 { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:6px; }
+.heatmap-wrapper { display:flex; gap:0; }
+.day-labels { display:flex; flex-direction:column; gap:3px; margin-right:6px; padding-top:16px; flex-shrink:0; }
+.day-labels span { font-size:9px; color:var(--text-muted); width:18px; height:13px; line-height:13px; text-align:right; padding-right:3px; }
+.heatmap-scroll { overflow-x:auto; padding-bottom:4px; }
+.heatmap { display:flex; gap:2px; }
+.heatmap .month-col { display:flex; flex-direction:column; gap:2px; }
+.heatmap .month-label { font-size:10px; color:var(--text-muted); height:14px; line-height:14px; }
+.heatmap .week { display:flex; flex-direction:column; gap:2px; }
+.heatmap .day { width:12px; height:12px; border-radius:2px; background:var(--heat-0); cursor:pointer; transition:all 0.1s; }
+.heatmap .day[data-count="1"] { background:var(--heat-1); }
+.heatmap .day[data-count="2"] { background:var(--heat-2); }
+.heatmap .day[data-count="3"] { background:var(--heat-3); }
+.heatmap .day[data-count="4"] { background:var(--heat-4); }
+.heatmap .day:hover { outline:2px solid var(--accent); outline-offset:0; z-index:1; }
+.heatmap .day.selected { outline:2px solid var(--accent); outline-offset:0; z-index:1; box-shadow:0 0 0 2px var(--accent-light); }
+.heatmap-legend { display:flex; align-items:center; gap:3px; margin-top:4px; margin-left:24px; font-size:10px; color:var(--text-muted); }
+.heatmap-legend .swatch { width:12px; height:12px; border-radius:2px; }
+.heatmap-legend .swatch.s0 { background:var(--heat-0); }
+.heatmap-legend .swatch.s1 { background:var(--heat-1); }
+.heatmap-legend .swatch.s2 { background:var(--heat-2); }
+.heatmap-legend .swatch.s3 { background:var(--heat-3); }
+.heatmap-legend .swatch.s4 { background:var(--heat-4); }
+
+.stats-row { flex-shrink:0; display:flex; gap:12px; padding:0 24px 12px; flex-wrap:wrap; }
+.stat { padding:8px 14px; background:var(--surface); border-radius:8px; border:1px solid var(--border); min-width:90px; }
+.stat .num { font-size:20px; font-weight:700; }
+.stat .label { font-size:10px; color:var(--text-muted); text-transform:uppercase; }
+
+.main-panel { flex:1; display:flex; gap:20px; padding:0 24px; min-height:0; }
+.sidebar { width:190px; flex-shrink:0; display:flex; flex-direction:column; min-height:0; }
+.sidebar h2 { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:6px; flex-shrink:0; }
+.sidebar .tag-search { width:100%; padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px; margin-bottom:6px; outline:none; font-family:inherit; flex-shrink:0; }
+.sidebar .tag-search:focus { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-light); }
+.tag-list { list-style:none; overflow-y:auto; flex:1; min-height:0; }
+.tag-list li { margin-bottom:1px; }
+.tag-btn { display:flex; align-items:center; justify-content:space-between; width:100%; padding:4px 8px; border:none; background:none; cursor:pointer; font-size:12px; color:var(--tag-text); border-radius:5px; transition:all 0.12s; font-family:inherit; text-align:left; }
+.tag-btn:hover { background:var(--tag-bg); }
+.tag-btn.active { background:var(--tag-active-bg); color:var(--tag-active-text); }
+.tag-btn .count { font-size:10px; color:var(--text-muted); background:var(--tag-bg); padding:0 5px; border-radius:7px; }
+.tag-btn.active .count { background:rgba(255,255,255,0.2); color:#fff; }
+
+.content { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+.search-bar { width:100%; padding:8px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; font-family:inherit; background:var(--surface); flex-shrink:0; margin-bottom:6px; }
+.search-bar:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-light); }
+.active-filters { display:flex; gap:4px; flex-wrap:wrap; flex-shrink:0; margin-bottom:6px; min-height:0; }
+.filter-chip { font-size:11px; padding:2px 8px; background:var(--accent); color:#fff; border-radius:10px; display:flex; align-items:center; gap:4px; cursor:pointer; }
+.filter-chip .remove { font-size:13px; line-height:1; }
+
+.entries-panel { flex:1; overflow-y:auto; min-height:0; }
+.month-group { margin-bottom:16px; }
+.month-header { font-size:14px; font-weight:600; color:var(--accent); margin-bottom:4px; padding-bottom:3px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:2; }
+.entry { padding:6px 10px; border-radius:5px; margin-bottom:1px; font-size:13px; line-height:1.4; display:flex; gap:10px; align-items:baseline; scroll-margin-top:28px; }
+.entry:hover { background:var(--surface); }
+.entry.highlight { background:var(--accent-light); animation:flash 1s ease-out; }
+@keyframes flash { from { background:var(--accent); } to { background:var(--accent-light); } }
+.entry .time { font-size:11px; color:var(--text-muted); white-space:nowrap; flex-shrink:0; font-variant-numeric:tabular-nums; min-width:58px; }
+.entry .body { flex:1; }
+.entry .tags { display:flex; gap:3px; flex-wrap:wrap; margin-top:1px; }
+.entry .tag { font-size:10px; color:var(--accent); cursor:pointer; }
+.entry .tag:hover { text-decoration:underline; }
+.entry.hidden { display:none; }
+.day-anchor { scroll-margin-top:28px; }
+.no-results { text-align:center; padding:30px; color:var(--text-muted); font-size:14px; }
+
+.heat-tooltip {
+  position:fixed; pointer-events:none; z-index:100;
+  background:#1a202c; color:#fff; font-size:11px; padding:3px 7px;
+  border-radius:4px; white-space:nowrap; display:none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<div class="header">
+  <h1>jrnl dashboard</h1>
+  <span class="file-info" id="fileInfo"></span>
+</div>
+
+<div class="drop-zone" id="dropZone">
+  <div class="drop-zone-inner">
+    <span class="icon">&#128214;</span>
+    <p>Drop your jrnl file here<br><span style="font-size:12px">or click to browse</span></p>
+  </div>
+</div>
+
+<div id="app">
+  <div class="calendar-section" id="calendarSection"></div>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="main-panel">
+    <div class="sidebar">
+      <h2>Tags</h2>
+      <input type="text" class="tag-search" id="tagSearch" placeholder="Filter tags...">
+      <ul class="tag-list" id="tagList"></ul>
+    </div>
+    <div class="content">
+      <input type="text" class="search-bar" id="searchBar" placeholder="Search entries...">
+      <div class="active-filters" id="activeFilters"></div>
+      <div class="entries-panel" id="entriesPanel">
+        <div id="entries"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="heat-tooltip" id="heatTooltip"></div>
+
+<script>
+let entries = [];
+let tags = {};
+let activeTags = new Set();
+let searchQuery = '';
+
+function formatSwiss(date) { return date.slice(8) + '.' + date.slice(5,7) + '.'; }
+function formatSwissDateTime(date, time) { return formatSwiss(date) + ' ' + time; }
+
+const dropZone = document.getElementById('dropZone');
+const app = document.getElementById('app');
+const fileInfo = document.getElementById('fileInfo');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('active'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('active'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('active');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+dropZone.addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.txt';
+  input.onchange = () => { if (input.files[0]) loadFile(input.files[0]); };
+  input.click();
+});
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    parseData(reader.result);
+    dropZone.classList.add('has-data');
+    app.classList.add('visible');
+    fileInfo.textContent = file.name + '  \u00b7  ' + entries.length + ' entries';
+  };
+  reader.readAsText(file);
+}
+
+function parseData(text) {
+  entries = [];
+  tags = {};
+  const lines = text.split('\n');
+
+  for (const line of lines) {
+    const match = line.match(/^\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\]\s+(.+)$/);
+    if (!match) continue;
+
+    const [, date, time, body] = match;
+    const tagMatches = body.match(/@(\S+)/g) || [];
+    const entryTags = tagMatches.map(t => t.slice(1));
+    const cleanBody = body.replace(/\s*@\S+/g, '').trim();
+
+    const entry = { date, time, body: cleanBody, tags: entryTags, raw: body };
+    entries.push(entry);
+
+    for (const tag of entryTags) {
+      tags[tag] = (tags[tag] || 0) + 1;
+    }
+  }
+
+  entries.reverse();
+  renderAll();
+}
+
+function renderAll() {
+  renderCalendar();
+  renderStats();
+  renderTags();
+  renderEntries();
+}
+
+function renderCalendar() {
+  const section = document.getElementById('calendarSection');
+  const counts = {};
+  entries.forEach(e => { counts[e.date] = (counts[e.date] || 0) + 1; });
+
+  const year = entries.length > 0 ? entries[0].date.slice(0,4) : '2025';
+  const d0 = new Date(`${year}-01-01`);
+  const d1 = new Date(`${year}-12-31`);
+
+  const allDays = [];
+  for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
+    allDays.push(new Date(d));
+  }
+
+  const weeks = [];
+  let week = new Array(7).fill(null);
+  for (const d of allDays) {
+    const ds = d.toISOString().slice(0,10);
+    week[d.getDay()] = { date: ds, count: counts[ds] || 0 };
+    if (d.getDay() === 6 || d.getTime() === d1.getTime()) {
+      weeks.push(week);
+      week = new Array(7).fill(null);
+    }
+  }
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  let html = '<h2>Activity</h2><div class="heatmap-wrapper">';
+  html += '<div class="day-labels"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>';
+  html += '<div class="heatmap-scroll"><div class="heatmap">';
+
+  let lastMonth = -1;
+  for (let wi = 0; wi < weeks.length; wi++) {
+    const w = weeks[wi];
+    let monthLabel = '';
+    for (const day of w) {
+      if (day && day.count > 0) {
+        const m = parseInt(day.date.slice(5,7)) - 1;
+        if (m !== lastMonth) { monthLabel = months[m]; lastMonth = m; }
+        break;
+      }
+      if (day) {
+        const m = parseInt(day.date.slice(5,7)) - 1;
+        if (m !== lastMonth) { monthLabel = months[m]; lastMonth = m; }
+        break;
+      }
+    }
+    html += '<div class="month-col">';
+    html += `<div class="month-label">${monthLabel || '&nbsp;'}</div>`;
+    html += '<div class="week">';
+    for (let d = 0; d < 7; d++) {
+      const day = w[d];
+      if (!day) { html += '<div class="day" style="visibility:hidden"></div>'; continue; }
+      const count = Math.min(day.count, 4);
+      html += `<div class="day" data-count="${count}" data-date="${day.date}" data-countval="${day.count}"></div>`;
+    }
+    html += '</div></div>';
+  }
+  html += '</div></div></div>';
+  html += '<div class="heatmap-legend">Less <span class="swatch s0"></span><span class="swatch s1"></span><span class="swatch s2"></span><span class="swatch s3"></span><span class="swatch s4"></span> More</div>';
+  section.innerHTML = html;
+
+  section.querySelectorAll('.day').forEach(dayEl => {
+    dayEl.addEventListener('click', () => {
+      const date = dayEl.dataset.date;
+      section.querySelectorAll('.day.selected').forEach(d => d.classList.remove('selected'));
+      dayEl.classList.add('selected');
+
+      const anchor = document.getElementById('d-' + date);
+      if (anchor) {
+        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const entries = document.querySelectorAll('.entry');
+        entries.forEach(e => e.classList.remove('highlight'));
+        let el = anchor;
+        while (el && el.classList.contains('entry')) {
+          el.classList.add('highlight');
+          el = el.nextElementSibling;
+          if (el && el.classList.contains('day-anchor')) break;
+        }
+      }
+    });
+
+    const tooltip = document.getElementById('heatTooltip');
+    dayEl.addEventListener('mouseenter', e => {
+      const date = dayEl.dataset.date;
+      const count = parseInt(dayEl.dataset.countval) || 0;
+      let text = formatSwiss(date);
+      if (count > 0) text += ' — ' + count + ' ' + (count === 1 ? 'entry' : 'entries');
+      tooltip.textContent = text;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 10) + 'px';
+      tooltip.style.top = (e.clientY - 28) + 'px';
+    });
+    dayEl.addEventListener('mousemove', e => {
+      tooltip.style.left = (e.clientX + 10) + 'px';
+      tooltip.style.top = (e.clientY - 28) + 'px';
+    });
+    dayEl.addEventListener('mouseleave', () => {
+      tooltip.style.display = 'none';
+    });
+  });
+}
+
+function renderStats() {
+  const total = entries.length;
+  const uniqueTags = Object.keys(tags).length;
+  const days = new Set(entries.map(e => e.date)).size;
+  document.getElementById('statsRow').innerHTML =
+    `<div class="stat"><div class="num">${total}</div><div class="label">Entries</div></div>` +
+    `<div class="stat"><div class="num">${days}</div><div class="label">Days</div></div>` +
+    `<div class="stat"><div class="num">${uniqueTags}</div><div class="label">Tags</div></div>`;
+}
+
+function renderTags() {
+  const search = (document.getElementById('tagSearch')?.value || '').toLowerCase();
+  const sorted = Object.entries(tags).sort((a,b) => b[1] - a[1]);
+  const filtered = sorted.filter(([tag]) => tag.toLowerCase().includes(search));
+  const list = document.getElementById('tagList');
+  list.innerHTML = filtered.map(([tag, count]) =>
+    `<li><button class="tag-btn${activeTags.has(tag)?' active':''}" data-tag="${tag}">${tag}<span class="count">${count}</span></button></li>`
+  ).join('');
+
+  list.querySelectorAll('.tag-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tag = btn.dataset.tag;
+      activeTags.has(tag) ? activeTags.delete(tag) : activeTags.add(tag);
+      renderAll();
+    });
+  });
+}
+
+function renderEntries() {
+  const search = searchQuery.toLowerCase();
+  let filtered = entries;
+
+  if (activeTags.size > 0) {
+    filtered = filtered.filter(e => {
+      for (const t of activeTags) if (!e.tags.includes(t)) return false;
+      return true;
+    });
+  }
+
+  if (search) {
+    filtered = filtered.filter(e =>
+      e.body.toLowerCase().includes(search) ||
+      e.date.includes(search) ||
+      e.tags.some(t => t.toLowerCase().includes(search))
+    );
+  }
+
+  const activeFiltersDiv = document.getElementById('activeFilters');
+  if (activeTags.size > 0) {
+    activeFiltersDiv.innerHTML = Array.from(activeTags).map(t =>
+      `<span class="filter-chip" data-tag="${t}">@${t} <span class="remove">&times;</span></span>`
+    ).join('');
+    activeFiltersDiv.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        activeTags.delete(chip.dataset.tag);
+        renderAll();
+      });
+    });
+  } else {
+    activeFiltersDiv.innerHTML = '';
+  }
+
+  const container = document.getElementById('entries');
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="no-results">No entries match your filters</div>';
+    return;
+  }
+
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  let html = '';
+  let lastMonth = '';
+  let lastDate = '';
+
+  for (const e of filtered) {
+    const month = e.date.slice(0,7);
+    if (month !== lastMonth) {
+      if (lastMonth) html += '</div>';
+      lastMonth = month;
+      lastDate = '';
+      const [y,m] = month.split('-');
+      html += `<div class="month-group"><div class="month-header">${months[parseInt(m)-1]} ${y} (${filtered.filter(x=>x.date.startsWith(month)).length})</div>`;
+    }
+    if (e.date !== lastDate) {
+      html += `<div class="day-anchor" id="d-${e.date}"></div>`;
+      lastDate = e.date;
+    }
+    const tagSpan = e.tags.map(t => `<span class="tag" data-tag="${t}">@${t}</span>`).join(' ');
+    html += `<div class="entry" data-date="${e.date}">
+      <span class="time">${formatSwissDateTime(e.date, e.time)}</span>
+      <div class="body">${e.body}${e.tags.length ? '<div class="tags">' + tagSpan + '</div>' : ''}</div>
+    </div>`;
+  }
+  html += '</div>';
+  container.innerHTML = html;
+
+  container.querySelectorAll('.tag').forEach(tagEl => {
+    tagEl.addEventListener('click', e => {
+      e.stopPropagation();
+      const tag = tagEl.dataset.tag;
+      if (!activeTags.has(tag)) {
+        activeTags.add(tag);
+        renderAll();
+      }
+    });
+  });
+}
+
+document.getElementById('searchBar').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  renderEntries();
+});
+
+document.getElementById('tagSearch').addEventListener('input', renderTags);
+</script>
+
+</div>
+</body>
+</html>
