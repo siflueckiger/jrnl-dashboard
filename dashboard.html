@@ -54,7 +54,9 @@ body {
 .heatmap-scroll { overflow-x:auto; padding-bottom:4px; }
 .heatmap { display:flex; gap:2px; }
 .heatmap .month-col { display:flex; flex-direction:column; gap:2px; }
-.heatmap .month-label { font-size:10px; color:var(--text-muted); height:14px; line-height:14px; }
+.heatmap .month-label { font-size:10px; color:var(--text-muted); height:14px; line-height:14px; cursor:pointer; border-radius:3px; padding:0 2px; transition:all 0.12s; }
+.heatmap .month-label:hover { background:var(--border); }
+.heatmap .month-label.active { background:var(--accent); color:#fff; }
 .heatmap .week { display:flex; flex-direction:column; gap:2px; }
 .heatmap .day { width:12px; height:12px; border-radius:2px; background:var(--heat-0); cursor:pointer; transition:all 0.1s; }
 .heatmap .day[data-count="1"] { background:var(--heat-1); }
@@ -164,6 +166,7 @@ let entries = [];
 let tags = {};
 let activeTags = new Set();
 let searchQuery = '';
+let activeMonth = null;
 
 function formatSwiss(date) { return date.slice(8) + '.' + date.slice(5,7) + '.'; }
 function formatSwissDateTime(date, time) { return formatSwiss(date) + ' ' + time; }
@@ -189,6 +192,11 @@ dropZone.addEventListener('click', () => {
 });
 
 function loadFile(file) {
+  activeMonth = null;
+  activeTags.clear();
+  searchQuery = '';
+  document.getElementById('searchBar').value = '';
+  document.getElementById('tagSearch').value = '';
   const reader = new FileReader();
   reader.onload = () => {
     parseData(reader.result);
@@ -237,6 +245,7 @@ function renderCalendar() {
   const counts = {};
   const searchQ = searchQuery.toLowerCase();
   const filteredForCalendar = entries.filter(e => {
+    if (activeMonth && !e.date.startsWith(activeMonth)) return false;
     if (activeTags.size > 0) {
       for (const t of activeTags) if (!e.tags.includes(t)) return false;
     }
@@ -296,7 +305,8 @@ function renderCalendar() {
       }
     }
     html += '<div class="month-col">';
-    html += `<div class="month-label">${monthLabel || '&nbsp;'}</div>`;
+    const mKey = monthLabel ? year + '-' + String(months.indexOf(monthLabel)+1).padStart(2,'0') : '';
+    html += `<div class="month-label${activeMonth===mKey?' active':''}" data-month="${mKey}">${monthLabel || '&nbsp;'}</div>`;
     html += '<div class="week">';
     for (let d = 0; d < 7; d++) {
       const day = w[d];
@@ -309,6 +319,14 @@ function renderCalendar() {
   html += '</div></div></div>';
   html += `<div class="heatmap-legend">Less <span class="swatch s0"></span><span class="swatch s1"></span><span class="swatch s2"></span><span class="swatch s3"></span><span class="swatch s4"></span> More · max ${maxCount} entr${maxCount===1?'y':'ies'}/day</div>`;
   section.innerHTML = html;
+
+  section.querySelectorAll('.month-label[data-month]').forEach(label => {
+    label.addEventListener('click', () => {
+      const m = label.dataset.month;
+      activeMonth = activeMonth === m ? null : m;
+      renderAll();
+    });
+  });
 
   section.querySelectorAll('.day').forEach(dayEl => {
     dayEl.addEventListener('click', () => {
@@ -362,9 +380,32 @@ function renderStats() {
 }
 
 function renderTags() {
-  const search = (document.getElementById('tagSearch')?.value || '').toLowerCase();
-  const sorted = Object.entries(tags).sort((a,b) => b[1] - a[1]);
-  const filtered = sorted.filter(([tag]) => tag.toLowerCase().includes(search));
+  const tagSearchV = (document.getElementById('tagSearch')?.value || '').toLowerCase();
+  const searchQ = searchQuery.toLowerCase();
+
+  let filteredForTags = entries;
+  if (activeMonth) filteredForTags = filteredForTags.filter(e => e.date.startsWith(activeMonth));
+  if (searchQ) {
+    const words = searchQ.split(/\s+/).filter(w => w.length > 0);
+    filteredForTags = filteredForTags.filter(e =>
+      words.every(word =>
+        e.body.toLowerCase().includes(word) ||
+        e.date.includes(word) ||
+        formatSwiss(e.date).includes(word) ||
+        e.tags.some(t => t.toLowerCase().includes(word))
+      )
+    );
+  }
+
+  const tagCounts = {};
+  for (const e of filteredForTags) {
+    for (const t of e.tags) {
+      tagCounts[t] = (tagCounts[t] || 0) + 1;
+    }
+  }
+
+  const sorted = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]);
+  const filtered = sorted.filter(([tag]) => tag.toLowerCase().includes(tagSearchV));
   const list = document.getElementById('tagList');
   list.innerHTML = filtered.map(([tag, count]) =>
     `<li><button class="tag-btn${activeTags.has(tag)?' active':''}" data-tag="${tag}">${tag}<span class="count">${count}</span></button></li>`
@@ -382,6 +423,10 @@ function renderTags() {
 function renderEntries() {
   const search = searchQuery.toLowerCase();
   let filtered = entries;
+
+  if (activeMonth) {
+    filtered = filtered.filter(e => e.date.startsWith(activeMonth));
+  }
 
   if (activeTags.size > 0) {
     filtered = filtered.filter(e => {
